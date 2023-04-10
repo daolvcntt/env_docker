@@ -1,0 +1,111 @@
+#!/bin/bash
+
+cp .env.${ENV} .env
+
+# if [ "${ENV}" == "production" ]; then
+# 	echo "Configuration Caching"
+# 	# php artisan config:cache
+# elif [ "${ENV}" == "local" ]; then
+# 	echo "Do nothing with composer install"
+# 	echo "Clear cache configuration"
+# 	# php artisan config:clear
+# else
+# 	echo "Configuration Caching"
+# 	# php artisan config:cache
+# fi
+
+# worker_backend=sqs
+# php artisan queue:work ${worker_backend} --sleep=3 --tries=3
+
+if [ -z "$RETRY_TIME" ]; then
+	RETRY_TIME=5
+fi
+
+if [ -z "$TIME_OUT" ]; then
+	TIME_OUT=60
+fi
+
+nproc_command=$(which nproc)
+if [ -z "$NUMBER_PROCESS" ]; then
+
+	if [ -z "$nproc_command" ]; then
+		NUMBER_PROCESS=1
+	else
+		NUMBER_PROCESS=$(nproc)
+	fi
+fi
+
+# if [ -z "$TASK_PER_PROCESS" ]; then
+# 	RATIO_NUMBER_PROCESS=1
+# fi
+
+# if [ "$NUMBER_PROCESS" -gt "$TASK_PER_PROCESS" ]; then
+# 	NUMBER_PROCESS=$(expr $NUMBER_PROCESS \* $TASK_PER_PROCESS)
+# fi
+
+if [ -z "$QUEUE_NAME" ]; then
+	QUEUE_NAME=sqs
+fi
+
+if [ -z "$QUEUE_MODE" ]; then
+	QUEUE_MODE=work
+fi
+
+case "$ENV" in
+local)
+	cat /etc/supervisor/conf.d/laravel-worker.conf.tpl |
+		sed "s~%%NUMBER_PROCESS%%~$NUMBER_PROCESS~" |
+		sed "s~%%QUEUE_NAME%%~$QUEUE_NAME~" |
+		sed "s~%%TIME_OUT%%~$TIME_OUT~" |
+		sed "s~%%RETRY_TIME%%~$RETRY_TIME~" |
+		sed "s~%%QUEUE_MODE%%~$QUEUE_MODE~" \
+			>/etc/supervisor/conf.d/laravel-worker.conf
+
+	;;
+dev | develop | development | stg | staging | production | prod | prd)
+
+	# Small queue
+	# NUMBER_PROCESS=1
+	QUEUE_NAME=sqs_small
+	TIME_OUT=60
+	RETRY_TIME=5
+	cat /etc/supervisor/conf.d/laravel-worker.conf.tpl |
+		sed "s~%%NUMBER_PROCESS%%~$NUMBER_PROCESS~" |
+		sed "s~%%QUEUE_NAME%%~$QUEUE_NAME~" |
+		sed "s~%%TIME_OUT%%~$TIME_OUT~" |
+		sed "s~%%RETRY_TIME%%~$RETRY_TIME~" |
+		sed "s~%%QUEUE_MODE%%~$QUEUE_MODE~" \
+			>/etc/supervisor/conf.d/laravel-worker-small.conf
+
+	# Normal queue
+	# NUMBER_PROCESS=1
+	QUEUE_NAME=sqs_normal
+	TIME_OUT=600
+	RETRY_TIME=5
+	cat /etc/supervisor/conf.d/laravel-worker.conf.tpl |
+		sed "s~%%NUMBER_PROCESS%%~$NUMBER_PROCESS~" |
+		sed "s~%%QUEUE_NAME%%~$QUEUE_NAME~" |
+		sed "s~%%TIME_OUT%%~$TIME_OUT~" |
+		sed "s~%%RETRY_TIME%%~$RETRY_TIME~" |
+		sed "s~%%QUEUE_MODE%%~$QUEUE_MODE~" \
+			>/etc/supervisor/conf.d/laravel-worker-normal.conf
+
+	# Big queue
+	# NUMBER_PROCESS=1
+	QUEUE_NAME=sqs_big
+	TIME_OUT=900
+	RETRY_TIME=5
+	cat /etc/supervisor/conf.d/laravel-worker.conf.tpl |
+		sed "s~%%NUMBER_PROCESS%%~$NUMBER_PROCESS~" |
+		sed "s~%%QUEUE_NAME%%~$QUEUE_NAME~" |
+		sed "s~%%TIME_OUT%%~$TIME_OUT~" |
+		sed "s~%%RETRY_TIME%%~$RETRY_TIME~" |
+		sed "s~%%QUEUE_MODE%%~$QUEUE_MODE~" \
+			>/etc/supervisor/conf.d/laravel-worker-big.conf
+
+	;;
+esac
+cat /etc/supervisor/conf.d/*
+rm -rf /etc/supervisor/conf.d/laravel-worker.conf.tpl
+echo "$(date +'%Y-%m-%d %H:%M:%S,%3N') INFO start worker with $NUMBER_PROCESS process with queue name $QUEUE_NAME with mode $QUEUE_MODE"
+supervisord --nodaemon --configuration /etc/supervisor/supervisord.conf

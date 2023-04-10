@@ -1,0 +1,52 @@
+version: "2"
+services:
+  base:
+    build:
+      context: .
+      dockerfile: ./env/docker/base/Dockerfile
+    command: "sleep 0"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./env/docker/nginx/Dockerfile
+      args:
+        ECS_RUN_TIME: ec2
+        BUILD_ENV: local
+
+    restart: always
+    ports:
+      - "22003:80"
+    volumes:
+      - ./gobox/api:/app:delegated
+    links:
+      - php
+
+  php:
+    build:
+      context: .
+      dockerfile: ./env/docker/php-fpm/Dockerfile
+      args:
+        BUILD_ENV: local
+    restart: always
+    volumes:
+      - ./gobox/api:/app:delegated
+    depends_on:
+      - mysql
+    environment:
+      - "ENV=local"
+
+  mysql:
+    image: mysql:5.7
+    # Persistent data of mysql
+    volumes:
+      - ./env/docker/storage/mysql:/var/lib/mysql
+    restart: always
+    platform: linux/amd64
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=gobox
+      - MYSQL_USER=gobox
+      - MYSQL_PASSWORD=123456
+    ports:
+      - "33999:3306"

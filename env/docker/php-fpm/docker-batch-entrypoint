@@ -1,0 +1,16 @@
+#!/bin/bash
+cp .env.${ENV} .env
+echo "Runing for ${ENV} environment"
+set -e
+
+if [ "${DEBUG}" == "true" ]; then
+	echo "Check release info for debuging"
+	cat release.txt
+fi
+
+
+echo "Running batch ${COMMAND_LINE}"
+exec ${COMMAND_LINE}
+
+echo "Done for running batch ${COMMAND_LINE}"
+sleep 5
